@@ -28,7 +28,11 @@ use crate::task::Task;
 const COMP_UNITS_PER_QUERY: u32 = 1;
 
 lazy_static! {
-    pub static ref SUPPORTED_WORKER_VERSIONS: VersionReq = ">=1.0.0-rc2".parse().unwrap();
+    pub static ref SUPPORTED_WORKER_VERSIONS: VersionReq =
+        std::env::var("SUPPORTED_WORKER_VERSIONS")
+            .unwrap_or(">=1.1.0-rc3".to_string())
+            .parse()
+            .expect("Invalid SUPPORTED_WORKER_VERSIONS");
 }
 
 pub struct Server<S: Stream<Item = GatewayEvent> + Send + Unpin + 'static> {

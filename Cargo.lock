@@ -4020,7 +4020,7 @@ checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 
 [[package]]
 name = "query-gateway"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "anyhow",
  "axum",
