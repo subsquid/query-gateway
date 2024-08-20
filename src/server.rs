@@ -227,6 +227,7 @@ impl<S: Stream<Item = GatewayEvent> + Send + Unpin + 'static> Server<S> {
             GatewayEvent::QueryResult { peer_id, result } => {
                 self.query_result(peer_id, result).await?
             }
+            GatewayEvent::QueryDropped {query_id} => self.query_dropped(query_id)?
         }
         Ok(())
     }
@@ -248,6 +249,15 @@ impl<S: Stream<Item = GatewayEvent> + Send + Unpin + 'static> Server<S> {
             .await
             .update_dataset_states(peer_id, worker_state);
     }
+
+    fn query_dropped(&mut self, query_id: String) -> anyhow::Result<()> {
+        log::debug!("Query {query_id} dropped");
+        let task = self.get_task(query_id)?.remove();
+        drop(task); // This will notify the receiver that query has been dropped
+        Ok(())
+    }
+
+
     async fn query_result(
         &mut self,
         peer_id: PeerId,

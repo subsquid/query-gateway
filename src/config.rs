@@ -51,15 +51,6 @@ impl DatasetId {
 
 #[serde_as]
 #[derive(Debug, Clone, Deserialize)]
-pub struct ComputeUnitsConfig {
-    /// Threshold below which new computation units will be allocated to the worker
-    pub minimum: u32,
-    /// How many computation units to allocate when remaining units drop below threshold
-    pub allocate: u32,
-}
-
-#[serde_as]
-#[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     pub logs_collector_id: PeerId,
     pub send_metrics: bool,
