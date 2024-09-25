@@ -6,7 +6,7 @@ default_query_timeout_sec: 60
 summary_print_interval_sec: 30
 workers_update_interval_sec: 180
 available_datasets:
+  arbitrum-one: "czM6Ly9hcmJpdHJ1bS1vbmU"
   ethereum-mainnet: "czM6Ly9ldGhlcmV1bS1tYWlubmV0"
   binance-mainnet: "czM6Ly9iaW5hbmNlLW1haW5uZXQ"
-  base-mainnet: "czM6Ly9iYXNlLTE"
-  arbitrum-one: "czM6Ly9hcmJpdHJ1bS1vbmU"
+  zksync-mainnet: "czM6Ly96a3N5bmMtbWFpbm5ldC0x"
