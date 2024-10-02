@@ -12,14 +12,14 @@ use sqd_network_transport::{
 use tokio::{sync::oneshot, time::Instant};
 use tokio_util::sync::CancellationToken;
 
+use super::{NetworkState, StorageClient};
+use crate::network::state::DatasetState;
 use crate::{
     cli::Config,
     metrics,
     types::{generate_query_id, BlockRange, DatasetId, QueryId},
     utils::UseOnce,
 };
-
-use super::{NetworkState, StorageClient};
 
 lazy_static::lazy_static! {
     static ref SUPPORTED_VERSIONS: semver::VersionReq = "~1.2.0".parse().expect("Invalid version requirement");
@@ -36,6 +36,7 @@ pub struct NetworkClient {
     dataset_storage: StorageClient,
     dataset_update_interval: Duration,
     chain_update_interval: Duration,
+    local_peer_id: PeerId,
 }
 
 struct QueryTask {
@@ -53,10 +54,13 @@ impl NetworkClient {
         let agent_into = get_agent_info!();
         let transport_builder = P2PTransportBuilder::from_cli(args, agent_into).await?;
         let contract_client = transport_builder.contract_client();
+        let local_peer_id = transport_builder.local_peer_id().clone();
+
         let mut gateway_config = GatewayConfig::new(logs_collector);
         gateway_config.query_config.request_timeout = config.transport_timeout;
         let (incoming_events, transport_handle) =
             transport_builder.build_gateway(gateway_config)?;
+
         Ok(NetworkClient {
             dataset_update_interval: config.dataset_update_interval,
             chain_update_interval: config.chain_update_interval,
@@ -66,6 +70,7 @@ impl NetworkClient {
             contract_client,
             tasks: Mutex::new(HashMap::new()),
             dataset_storage,
+            local_peer_id,
         })
     }
 
@@ -286,7 +291,11 @@ impl NetworkClient {
         Ok(())
     }
 
-    pub fn network_state(&self) -> impl Serialize {
-        self.network_state.lock().network_state()
+    pub fn dataset_state(&self, dataset_id: DatasetId) -> Option<DatasetState> {
+        self.network_state.lock().dataset_state(dataset_id).cloned()
+    }
+
+    pub fn peer_id(&self) -> PeerId {
+        self.local_peer_id
     }
 }
