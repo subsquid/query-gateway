@@ -1,6 +1,8 @@
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use clap::Parser;
+use prometheus_client::registry::Registry;
 use cli::Cli;
 use controller::task_manager::TaskManager;
 use http_server::run_server;
@@ -42,16 +44,38 @@ fn setup_tracing(json: bool) -> anyhow::Result<()> {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
-    let args = Cli::parse();
+    let mut args = Cli::parse();
     setup_tracing(args.json_log)?;
+
+    let dataset_info = network::datasets_info_load().await?;
+    let hostname = args.config.hostname.clone();
+    args.config.available_datasets.iter_mut().for_each(move |(path, d)| {
+        if let Some(info) = dataset_info.get_by_path(&path)  {
+            let provider = info.providers.first().cloned().unwrap_or_default();
+
+            d.chain_id  = info.chain_id;
+            d.chain_ss58_prefix  = info.chain_ss58_prefix;
+            d.chain_type  = info.chain_type.clone();
+            d.name = info.chain_name.clone();
+            d.is_testnet  = info.is_testnet;
+            d.data = Option::from(provider.data.clone());
+            d.url = Option::from(format!("{}/network/{}", hostname, path));
+            d.tier = Option::from(provider.support_tier.unwrap_or_default().to_string());
+        }
+    });
+
     let config = Arc::new(args.config);
-    let mut metrics_registry = Default::default();
+    let network_client =
+        Arc::new(NetworkClient::new(args.transport, args.logs_collector_id, config.clone()).await?);
+
+    let mut metrics_registry = Registry::with_labels( vec![
+        (Cow::Borrowed("peer_id"), Cow::Owned(network_client.peer_id().to_string())),
+    ].into_iter());
     metrics::register_metrics(&mut metrics_registry);
     sqd_network_transport::metrics::register_metrics(&mut metrics_registry);
     let cancellation_token = CancellationToken::new();
 
-    let network_client =
-        Arc::new(NetworkClient::new(args.transport, args.logs_collector_id, config.clone()).await?);
+
     tracing::info!("Network client initialized");
     let task_manager = Arc::new(TaskManager::new(network_client.clone(), config.max_parallel_streams));
 
