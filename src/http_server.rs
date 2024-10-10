@@ -9,18 +9,20 @@ use axum::{
     routing::{get, post},
     Extension, RequestExt, Router,
 };
+use axum::http::Method;
 use sqd_contract_client::PeerId;
 use futures::StreamExt;
 use itertools::Itertools;
 use prometheus_client::registry::Registry;
 use sqd_messages::query_result;
+use tower_http::cors::{Any, CorsLayer};
 
 use crate::{
     cli::Config,
     controller::task_manager::TaskManager,
     network::NetworkClient,
     types::{ClientRequest, DatasetId, RequestError},
-    utils::logging,
+    utils::logging
 };
 
 async fn get_height(
@@ -130,6 +132,22 @@ async fn get_network_state(Extension(client): Extension<Arc<NetworkClient>>) -> 
     axum::Json(client.network_state())
 }
 
+async fn get_config(Extension(config): Extension<Arc<Config>>) -> impl IntoResponse {
+    axum::Json((*config).clone())
+}
+
+async fn get_dataset_state(
+    Path(dataset): Path<String>,
+    Extension(client): Extension<Arc<NetworkClient>>,
+    Extension(config): Extension<Arc<Config>>,
+)  -> impl IntoResponse {
+    let Some(dataset_id) = config.dataset_id(&dataset) else {
+        return RequestError::NotFound(format!("Unknown dataset: {dataset}")).into_response();
+    };
+
+    axum::Json(client.dataset_state(dataset_id)).into_response()
+}
+
 async fn get_metrics(Extension(registry): Extension<Arc<Registry>>) -> impl IntoResponse {
     lazy_static::lazy_static! {
         static ref HEADERS: HeaderMap = {
@@ -157,17 +175,36 @@ pub async fn run_server(
     addr: &SocketAddr,
     config: Arc<Config>,
 ) -> anyhow::Result<()> {
+    let cors = CorsLayer::new()
+        .allow_methods([Method::GET, Method::POST])
+        .allow_origin(Any);
+
     tracing::info!("Starting HTTP server listening on {addr}");
     let app = Router::new()
+
+        // TODO More convenient path would be `/datasets/:dataset/height`.
+        // Maybe it's better to preserve old URLs, but create new ones in new format
+        //
+        // .route("/datasets/:dataset/state", post(get_dataset_state))
+        // .route("/datasets/:dataset/height", post(get_height))
+        // .route("/datasets/:dataset/stream", post(execute_stream_restricted))
+        // .route("/datasets/:dataset/stream/debug", post(execute_stream))
+
         .route("/network/:dataset/height", get(get_height))
         .route("/network/:dataset/stream", post(execute_stream_restricted))
         .route("/network/:dataset/debug", post(execute_stream))
+        .route("/network/:dataset/state", get(get_dataset_state))
+        .route("/network/state", get(get_network_state))
+
         // for backward compatibility
         .route("/network/:dataset/:start_block/worker", get(get_worker))
         .route("/query/:dataset_id/:worker_id", post(execute_query))
-        .route("/network/state", get(get_network_state))
+        // end backward compatibility routes
+
         .layer(axum::middleware::from_fn(logging::middleware))
         .route("/metrics", get(get_metrics))
+        .route("/config", get(get_config))
+        .layer(cors)
         .layer(Extension(task_manager))
         .layer(Extension(network_state))
         .layer(Extension(config))

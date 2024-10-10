@@ -144,4 +144,8 @@ impl NetworkState {
     pub fn network_state(&self) -> HashMap<DatasetId, DatasetState> {
         self.dataset_states.clone()
     }
+
+    pub fn dataset_state(&self, dataset_id: DatasetId) -> Option<&DatasetState> {
+        self.dataset_states.get(&dataset_id)
+    }
 }
