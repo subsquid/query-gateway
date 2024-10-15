@@ -1,9 +1,11 @@
+use crate::network::ChainType;
 use clap::Parser;
 use serde::Deserialize;
+use serde_with::serde_derive::Serialize;
 use serde_with::{serde_as, DurationSeconds};
+use sqd_network_transport::{PeerId, TransportArgs};
 use std::time::Duration;
 use std::{collections::HashMap, net::SocketAddr};
-use sqd_network_transport::{PeerId, TransportArgs};
 
 use crate::types::DatasetId;
 
@@ -83,7 +85,21 @@ where
 }
 
 #[serde_as]
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatasetConfig {
+    pub name: Option<String>,
+    pub chain_id: Option<usize>,
+    pub url: Option<String>,
+    pub chain_ss58_prefix: Option<usize>,
+    pub chain_type: Option<ChainType>,
+    pub bucket: String,
+    pub is_testnet: Option<bool>,
+    pub data: Option<serde_json::Value>,
+    pub tier: Option<String>,
+}
+
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     #[serde(deserialize_with = "parse_hostname")]
     pub hostname: String,
@@ -140,7 +156,7 @@ pub struct Config {
     pub chain_update_interval: Duration,
 
     // Dataset alias -> bucket URL
-    pub available_datasets: HashMap<String, String>,
+    pub available_datasets: HashMap<String, DatasetConfig>,
 }
 
 impl Config {
@@ -152,10 +168,12 @@ impl Config {
     pub fn dataset_id(&self, dataset: &str) -> Option<DatasetId> {
         self.available_datasets
             .get(dataset)
-            .map(DatasetId::from_url)
+            .map(|d| DatasetId::from_url(d.bucket.clone()))
     }
 
     pub fn dataset_ids(&self) -> impl Iterator<Item = DatasetId> + '_ {
-        self.available_datasets.values().map(DatasetId::from_url)
+        self.available_datasets
+            .values()
+            .map(|d| DatasetId::from_url(d.bucket.clone()))
     }
 }
